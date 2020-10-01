@@ -4,6 +4,7 @@ from math import sqrt
 
 import pytorch_lightning as pl
 import torch as th
+from pytorch_lightning.core.decorators import auto_move_data
 from torch_optim_sparse import SparserAdamW
 
 from torch_factorization_models.losses import resolve_loss
@@ -122,6 +123,47 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         result = pl.EvalResult(loss)
         result.log("testing_loss", loss, on_step=False, on_epoch=True)
         return result
+
+    @auto_move_data
+    @th.no_grad()
+    def similar_to_users(self, user_ids, k=10):
+        user_ids = user_ids - 1
+
+        query_vectors = self.user_embeddings(user_ids).squeeze()
+        query_biases = self.user_biases(user_ids).squeeze() if self.use_biases else None
+
+        return self.similar_to_vectors(query_vectors, query_biases, k)
+
+    @auto_move_data
+    @th.no_grad()
+    def similar_to_items(self, item_ids, k=10):
+        item_ids = item_ids - 1
+
+        query_vectors = self.item_embeddings(item_ids).squeeze()
+        query_biases = self.item_biases(item_ids).squeeze() if self.use_biases else None
+
+        return self.similar_to_vectors(query_vectors, query_biases, k)
+
+    @auto_move_data
+    @th.no_grad()
+    def similar_to_vectors(self, query_vectors, query_biases, k=10):
+        item_vectors = self.item_embeddings.weight.squeeze()
+        dots = query_vectors.mm(item_vectors.t())
+
+        if self.use_biases:
+            item_biases = self.item_biases.weight.squeeze()
+
+            biases = query_biases.expand(
+                (item_vectors.shape[0], query_biases.shape[0])
+            ).t()
+            biases += item_biases.expand((query_vectors.shape[0], item_biases.shape[0]))
+            biases += self.global_bias(self.global_bias_idx).squeeze()
+        else:
+            biases = self.global_bias(self.global_bias_idx).squeeze()
+
+        scores = th.sigmoid(dots + biases).detach()
+
+        return th.topk(scores, k)
 
     @staticmethod
     def add_model_specific_args(parent_parser):
