@@ -4,9 +4,9 @@ from pathlib import Path
 
 import torch as th
 from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.loggers import WandbLogger
 
-
-from torch_factorization_models.matrix_factorization import ImplicitMatrixFactorization
+from torch_factorization_models.implicit_mf import ImplicitMatrixFactorization
 from torch_factorization_models.movielens import MovielensDataModule
 
 # sets seeds for numpy, torch, etc...
@@ -28,13 +28,18 @@ def main(args):
     # Set up the model and logger
     model = ImplicitMatrixFactorization(hparams=args)
 
+    wandb_logger = WandbLogger(project="torch-factorization-models")
+    wandb_logger.watch(model, log="all", log_freq=100)
+
     # Most basic trainer, uses good defaults
-    trainer = Trainer.from_argparse_args(args, check_val_every_n_epoch=5)
+    trainer = Trainer.from_argparse_args(
+        args, check_val_every_n_epoch=5, logger=wandb_logger
+    )
 
     trainer.fit(model, movielens)
 
     # Save the model
-    th.save(model.state_dict(), Path(".") / "model.pt")
+    th.save(model.state_dict(), Path(wandb_logger.experiment.dir) / "model.pt")
 
 
 if __name__ == "__main__":

@@ -61,7 +61,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
         return th.sigmoid(dots + biases)
 
-    def loss_step(self, batch, batch_idx):
+    def batch_loss(self, batch, batch_idx):
         user_ids = batch["user_ids"]
         item_ids = batch["item_ids"]
 
@@ -95,12 +95,33 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
         return self.loss_fn(pos_preds, neg_preds)
 
+    def on_train_start(self):
+        # Logger can't be used in __init__, so log the hyperparams here
+        self.logger.log_hyperparams(self.hparams)
+
+    def epoch_loss(self, outputs):
+        losses = th.cat([o["loss"].reshape(-1) for o in outputs]).flatten()
+        return losses.mean()
+
     def training_step(self, batch, batch_idx):
-        return {"loss": self.loss_step(batch, batch_idx)}
+        loss = self.batch_loss(batch, batch_idx)
+        result = pl.TrainResult(minimize=loss)
+        result.log("training_loss", loss, on_epoch=True)
+        return result
 
     @th.no_grad()
     def validation_step(self, batch, batch_idx):
-        return {"loss": self.loss_step(batch, batch_idx)}
+        loss = self.batch_loss(batch, batch_idx)
+        result = pl.EvalResult(loss)
+        result.log("tuning_loss", loss, on_step=False, on_epoch=True)
+        return result
+
+    @th.no_grad()
+    def test_step(self, batch, batch_idx):
+        loss = self.batch_loss(batch, batch_idx)
+        result = pl.EvalResult(loss)
+        result.log("testing_loss", loss, on_step=False, on_epoch=True)
+        return result
 
     @staticmethod
     def add_model_specific_args(parent_parser):

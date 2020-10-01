@@ -143,4 +143,5 @@ cython_debug/
 .vscode/
 .python-version
 lightning_logs/
+wandb/
 *.pt
