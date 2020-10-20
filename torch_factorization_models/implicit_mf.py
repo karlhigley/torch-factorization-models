@@ -5,9 +5,9 @@ from math import sqrt
 import pytorch_lightning as pl
 import torch as th
 from pytorch_lightning.core.decorators import auto_move_data
-from torch_optim_sparse import SparserAdamW
 
-from torch_factorization_models.losses import resolve_loss
+from torch_factorization_models.losses import select_loss
+from torch_factorization_models.optimizers import build_optimizer
 
 logger = logging.getLogger("matrix-factorization")
 
@@ -16,20 +16,24 @@ class ImplicitMatrixFactorization(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
 
-        self.loss_fn = resolve_loss(hparams.loss)
-        self.learning_rate = hparams.learning_rate
-        self.weight_decay = hparams.weight_decay
+        self.hparams = hparams
+
+        self.loss_fn = select_loss(hparams.loss)
+        self.learning_rate = hparams.y_learning_rate
+        self.weight_decay = hparams.x_weight_decay
+
         self.use_biases = hparams.use_biases
+        self.sparse = hparams.z_optimizer != "sgd"
 
         self.user_embeddings = th.nn.Embedding(
-            hparams.num_users, hparams.embedding_dim, sparse=True
+            hparams.num_users, hparams.embedding_dim, sparse=self.sparse
         )
 
         self.item_embeddings = th.nn.Embedding(
-            hparams.num_items, hparams.embedding_dim, sparse=True
+            hparams.num_items, hparams.embedding_dim, sparse=self.sparse
         )
 
-        self.global_bias = th.nn.Embedding(1, 1, sparse=True)
+        self.global_bias = th.nn.Embedding(1, 1, sparse=self.sparse)
         self.global_bias_idx = th.LongTensor([0]).to(device=self.device)
 
         init_std = 1.0 / sqrt(hparams.embedding_dim)
@@ -38,17 +42,18 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         th.nn.init.normal_(self.item_embeddings.weight, 0, init_std)
         th.nn.init.normal_(self.global_bias.weight, 0, init_std)
 
-        if self.use_biases:
-            self.user_biases = th.nn.Embedding(hparams.num_users, 1, sparse=True)
-            self.item_biases = th.nn.Embedding(hparams.num_items, 1, sparse=True)
+        self.user_biases = th.nn.Embedding(hparams.num_users, 1, sparse=self.sparse)
+        self.item_biases = th.nn.Embedding(hparams.num_items, 1, sparse=self.sparse)
 
+        if self.use_biases:
             th.nn.init.normal_(self.user_biases.weight, 0, init_std)
             th.nn.init.normal_(self.item_biases.weight, 0, init_std)
+        else:
+            th.nn.init.zeros_(self.user_biases.weight)
+            th.nn.init.zeros_(self.item_biases.weight)
 
     def configure_optimizers(self):
-        return SparserAdamW(
-            self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay
-        )
+        return build_optimizer(list(self.parameters()), self.hparams)
 
     def forward(
         self, user_vectors, item_vectors, user_biases, item_biases, global_bias
@@ -56,11 +61,11 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         dots = (user_vectors * item_vectors).sum(dim=1)
 
         if self.use_biases:
-            biases = user_biases + item_biases + global_bias
+            biases = user_biases + item_biases + global_bias.expand(user_biases.shape)
         else:
             biases = global_bias
 
-        return th.sigmoid(dots + biases)
+        return dots + biases
 
     def batch_loss(self, batch, batch_idx):
         user_ids = batch["user_ids"]
@@ -94,7 +99,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
             user_vectors, neg_item_vectors, user_biases, neg_item_biases, global_bias
         )
 
-        return self.loss_fn(pos_preds, neg_preds)
+        return self.loss_fn(pos_preds, neg_preds).mean()
 
     def on_train_start(self):
         # Logger can't be used in __init__, so log the hyperparams here
@@ -127,20 +132,24 @@ class ImplicitMatrixFactorization(pl.LightningModule):
     @auto_move_data
     @th.no_grad()
     def similar_to_users(self, user_ids, k=10):
-        user_ids = user_ids - 1
-
         query_vectors = self.user_embeddings(user_ids).squeeze()
-        query_biases = self.user_biases(user_ids).squeeze() if self.use_biases else None
+        query_biases = (
+            self.user_biases(user_ids).squeeze()
+            if self.use_biases
+            else th.empty((1, 1))
+        )
 
         return self.similar_to_vectors(query_vectors, query_biases, k)
 
     @auto_move_data
     @th.no_grad()
     def similar_to_items(self, item_ids, k=10):
-        item_ids = item_ids - 1
-
         query_vectors = self.item_embeddings(item_ids).squeeze()
-        query_biases = self.item_biases(item_ids).squeeze() if self.use_biases else None
+        query_biases = (
+            self.item_biases(item_ids).squeeze()
+            if self.use_biases
+            else th.empty((1, 1))
+        )
 
         return self.similar_to_vectors(query_vectors, query_biases, k)
 
@@ -150,10 +159,11 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         item_vectors = self.item_embeddings.weight.squeeze()
         dots = query_vectors.mm(item_vectors.t())
 
-        if self.use_biases:
-            item_biases = self.item_biases.weight.squeeze()
+        item_biases = self.item_biases.weight.squeeze()
+        biases = th.zeros((query_vectors.shape[0], item_biases.shape[0]))
 
-            biases = query_biases.expand(
+        if self.use_biases:
+            biases += query_biases.expand(
                 (item_vectors.shape[0], query_biases.shape[0])
             ).t()
             biases += item_biases.expand((query_vectors.shape[0], item_biases.shape[0]))
@@ -184,8 +194,15 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         parser.set_defaults(use_biases=False)
 
         # training specific (for this model)
-        parser.add_argument("--learning_rate", default=1e-2, type=float)
-        parser.add_argument("--weight_decay", default=1e-2, type=float)
-        parser.add_argument("--loss", default="pointwise", type=str)
+        parser.add_argument("--loss", default="hinge", type=str)
+
+        parser.add_argument("--y_learning_rate", default=1e-2, type=float)
+        parser.add_argument("--x_weight_decay", default=1e-2, type=float)
+
+        parser.add_argument("--z_optimizer", default="sparser_adamw", type=str)
+
+        parser.add_argument("--momentum", default=0.9, type=float)
+        parser.add_argument("--beta1", default=0.9, type=float)
+        parser.add_argument("--beta2", default=0.999, type=float)
 
         return parser
