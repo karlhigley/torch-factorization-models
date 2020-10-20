@@ -3,9 +3,12 @@ from argparse import ArgumentParser
 from math import floor
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch as th
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import Binarizer, OrdinalEncoder
 from torch.utils.data import DataLoader, random_split
 
 logger = logging.getLogger("movielens-dataset")
@@ -20,13 +23,22 @@ class MovielensDataset(th.utils.data.Dataset):
             columns={"userId": "user_id", "movieId": "item_id", "rating": "target"}
         )
 
-        interactions["user_id"] -= 1
-        interactions["item_id"] -= 1
+        interactions = interactions[interactions["target"] >= threshold].copy()
 
-        kept_rows = interactions[interactions["target"] >= threshold]
-        interactions = kept_rows.copy()
-        interactions.assign(target=1.0)
+        xformer = ColumnTransformer(
+            [
+                ("user_id", OrdinalEncoder(dtype=np.int64), ["user_id"]),
+                ("item_id", OrdinalEncoder(dtype=np.int64), ["item_id"]),
+                ("target", Binarizer(threshold=threshold), ["target"]),
+            ],
+            remainder="passthrough",
+        )
 
+        interactions = pd.DataFrame(
+            xformer.fit_transform(interactions), columns=interactions.columns
+        )
+
+        self.preprocessor = xformer
         self.user_ids = th.tensor(interactions["user_id"].values, dtype=th.int64)
         self.item_ids = th.tensor(interactions["item_id"].values, dtype=th.int64)
         self.targets = th.tensor(interactions["target"].values, dtype=th.float64)
