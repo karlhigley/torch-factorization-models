@@ -145,3 +145,4 @@ cython_debug/
 lightning_logs/
 wandb/
 *.pt
+*.yaml
