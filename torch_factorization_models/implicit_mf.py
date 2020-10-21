@@ -139,6 +139,8 @@ class ImplicitMatrixFactorization(pl.LightningModule):
             else th.empty((1, 1))
         )
 
+        query_biases = th.ones_like(query_biases)
+
         return self.similar_to_vectors(query_vectors, query_biases, k)
 
     @auto_move_data
@@ -161,15 +163,12 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
         item_biases = self.item_biases.weight.squeeze()
         biases = th.zeros((query_vectors.shape[0], item_biases.shape[0]))
+        biases += self.global_bias(self.global_bias_idx).squeeze()
 
         if self.use_biases:
             biases += query_biases.expand(
                 (item_vectors.shape[0], query_biases.shape[0])
-            ).t()
-            biases += item_biases.expand((query_vectors.shape[0], item_biases.shape[0]))
-            biases += self.global_bias(self.global_bias_idx).squeeze()
-        else:
-            biases = self.global_bias(self.global_bias_idx).squeeze()
+            ).t() * item_biases.expand((query_vectors.shape[0], item_biases.shape[0]))
 
         scores = th.sigmoid(dots + biases).detach()
 
