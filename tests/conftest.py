@@ -95,7 +95,7 @@ class TestDataModule(pl.LightningDataModule):
     def add_dataset_specific_args(parent_parser):
         # DATASET specific
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
-        parser.add_argument("--batch_size", default=512, type=int)
+        parser.add_argument("--batch_size", default=8, type=int)
         parser.add_argument("--num_workers", default=1, type=int)
 
         return parser
@@ -125,8 +125,6 @@ def trained_model():
         str(100),
         "--num_items",
         str(100),
-        "--batch_size",
-        str(8),
         "--max_epochs",
         str(100),
     ]
