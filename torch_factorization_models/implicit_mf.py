@@ -131,6 +131,25 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
     @auto_move_data
     @th.no_grad()
+    def eval_predict(self, user_ids):
+        query_vectors = self.user_embeddings(user_ids).squeeze()
+        query_biases = (
+            self.user_biases(user_ids).squeeze()
+            if self.use_biases
+            else th.empty((1, 1))
+        )
+
+        item_vectors = self.item_embeddings.weight.squeeze()
+        item_biases = self.item_biases.weight.squeeze()
+
+        scores = self._similarity_scores(
+            query_vectors, query_biases, item_vectors, item_biases
+        )
+
+        return scores
+
+    @auto_move_data
+    @th.no_grad()
     def similar_to_users(self, user_ids, k=10):
         query_vectors = self.user_embeddings(user_ids).squeeze()
         query_biases = (
@@ -159,9 +178,21 @@ class ImplicitMatrixFactorization(pl.LightningModule):
     @th.no_grad()
     def similar_to_vectors(self, query_vectors, query_biases, k=10):
         item_vectors = self.item_embeddings.weight.squeeze()
+        item_biases = self.item_biases.weight.squeeze()
+
+        scores = self._similarity_scores(
+            query_vectors, query_biases, item_vectors, item_biases
+        )
+
+        return th.topk(scores, k)
+
+    @auto_move_data
+    @th.no_grad()
+    def _similarity_scores(
+        self, query_vectors, query_biases, item_vectors, item_biases
+    ):
         dots = query_vectors.mm(item_vectors.t())
 
-        item_biases = self.item_biases.weight.squeeze()
         biases = th.zeros((query_vectors.shape[0], item_biases.shape[0]))
         biases += self.global_bias(self.global_bias_idx).squeeze()
 
@@ -172,7 +203,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
         scores = th.sigmoid(dots + biases).detach()
 
-        return th.topk(scores, k)
+        return scores
 
     @staticmethod
     def add_model_specific_args(parent_parser):
