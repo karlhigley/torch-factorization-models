@@ -1,5 +1,6 @@
 import logging
 from argparse import ArgumentParser
+from collections import defaultdict
 from math import floor
 from pathlib import Path
 
@@ -9,7 +10,7 @@ import pytorch_lightning as pl
 import torch as th
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import Binarizer, OrdinalEncoder
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Dataset, random_split
 
 logger = logging.getLogger("movielens-dataset")
 
@@ -62,6 +63,72 @@ class MovielensDataset(th.utils.data.Dataset):
         }
 
 
+class MovielensEvalDataset(Dataset):
+    def __init__(self, subset):
+        self.subset = subset
+        self.interactions = self._build_interaction_vectors(subset)
+
+    def __len__(self):
+        return len(self.interactions.keys())
+
+    def __getitem__(self, index):
+        user_id = int(index)
+        user_interactions = self.interactions[user_id]
+
+        return {
+            "user_ids": th.tensor([user_id]),
+            "interactions": user_interactions,
+        }
+
+    def _build_interaction_vectors(self, subset):
+        num_users = subset.dataset.num_users
+        num_items = subset.dataset.num_items
+
+        interactions = defaultdict(
+            lambda: self._empty_sparse_vector(num_users, num_items)
+        )
+
+        # Create a sparse vector for each user's item interactions
+        current_user_id = 0
+        current_item_ids = []
+
+        for index in sorted(subset.indices):
+            example = subset.dataset[index]
+            user_id = example["user_ids"]
+            item_id = example["item_ids"]
+
+            if user_id != current_user_id:
+                # Build sparse vector with accumulated interactions
+                interactions[int(user_id)] = self._sparse_vector(
+                    current_user_id, current_item_ids, num_users, num_items,
+                )
+
+                # Clear accumulators for the next user
+                current_user_id = user_id
+                current_item_ids = []
+
+            # Add the current item to the interactions for this user
+            current_item_ids.append(item_id)
+
+        return interactions
+
+    def _sparse_vector(self, user_id, item_ids, num_users, num_items):
+        item_indices = th.tensor(item_ids, dtype=th.int64)
+        user_indices = th.empty_like(item_indices, dtype=th.int64).fill_(user_id)
+        item_labels = th.ones_like(item_indices, dtype=th.float64)
+
+        return th.sparse.FloatTensor(
+            th.stack([user_indices, item_indices]), item_labels, (num_users, num_items)
+        )
+
+    def _empty_sparse_vector(self, num_users, num_items):
+        return th.sparse.FloatTensor(
+            th.tensor([[], []], dtype=th.int64),
+            th.tensor([], dtype=th.float64),
+            (num_users, num_items),
+        )
+
+
 class MovielensDataModule(pl.LightningDataModule):
     def __init__(self, data_dir=".", batch_size=64, num_workers=1):
         super().__init__()
@@ -93,21 +160,31 @@ class MovielensDataModule(pl.LightningDataModule):
             pin_memory=True,
         )
 
-    def val_dataloader(self):
-        return DataLoader(
-            self.tuning,
-            num_workers=self.num_workers,
-            batch_size=self.batch_size,
-            pin_memory=True,
-        )
+    def val_dataloader(self, by_user=False):
+        if by_user:
+            return DataLoader(
+                MovielensEvalDataset(self.tuning), batch_size=self.batch_size,
+            )
+        else:
+            return DataLoader(
+                self.tuning,
+                num_workers=self.num_workers,
+                batch_size=self.batch_size,
+                pin_memory=True,
+            )
 
-    def test_dataloader(self):
-        return DataLoader(
-            self.testing,
-            num_workers=self.num_workers,
-            batch_size=self.batch_size,
-            pin_memory=True,
-        )
+    def test_dataloader(self, by_user=False):
+        if by_user:
+            return DataLoader(
+                MovielensEvalDataset(self.testing), batch_size=self.batch_size,
+            )
+        else:
+            return DataLoader(
+                self.testing,
+                num_workers=self.num_workers,
+                batch_size=self.batch_size,
+                pin_memory=True,
+            )
 
     @staticmethod
     def add_dataset_specific_args(parent_parser):
