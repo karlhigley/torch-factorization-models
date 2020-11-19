@@ -71,6 +71,11 @@ class MovielensDataset(th.utils.data.Dataset):
             "targets": target,
         }
 
+    def to_(self, *args, **kwargs):
+        self.user_ids = self.user_ids.to(*args, **kwargs)
+        self.item_ids = self.item_ids.to(*args, **kwargs)
+        self.targets = self.targets.to(*args, **kwargs)
+
 
 class MovielensEvalDataset(Dataset):
     def __init__(self, subset):
