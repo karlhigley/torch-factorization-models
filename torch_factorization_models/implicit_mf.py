@@ -19,11 +19,11 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         self.hparams = hparams
 
         self.loss_fn = select_loss(hparams.loss)
-        self.learning_rate = hparams.y_learning_rate
-        self.weight_decay = hparams.x_weight_decay
+        self.learning_rate = hparams.learning_rate
+        self.weight_decay = hparams.weight_decay
 
         self.use_biases = hparams.use_biases
-        self.sparse = hparams.z_optimizer != "sgd"
+        self.sparse = hparams.optimizer != "sgd"
 
         self.user_embeddings = th.nn.Embedding(
             hparams.num_users, hparams.embedding_dim, sparse=self.sparse
@@ -226,10 +226,10 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         # training specific (for this model)
         parser.add_argument("--loss", default="hinge", type=str)
 
-        parser.add_argument("--y_learning_rate", default=1e-2, type=float)
-        parser.add_argument("--x_weight_decay", default=1e-2, type=float)
+        parser.add_argument("--learning_rate", default=1e-2, type=float)
+        parser.add_argument("--weight_decay", default=1e-2, type=float)
 
-        parser.add_argument("--z_optimizer", default="sparser_adamw", type=str)
+        parser.add_argument("--optimizer", default="sparser_adamw", type=str)
 
         parser.add_argument("--momentum", default=0.9, type=float)
         parser.add_argument("--beta1", default=0.9, type=float)

@@ -18,9 +18,9 @@ class Optimizer(enum.Enum):
 
 
 def build_optimizer(params, hparams):
-    wd = hparams.x_weight_decay
-    eff_lr = hparams.y_learning_rate
-    opt_name = hparams.z_optimizer
+    wd = hparams.weight_decay
+    eff_lr = hparams.learning_rate
+    opt_name = hparams.optimizer
 
     bs = hparams.batch_size
     m = hparams.momentum
@@ -48,7 +48,7 @@ def build_optimizer(params, hparams):
     hparams.beta2 = b2
 
     if opt == Optimizer.SGD:
-        return th.optim.SGD(params, lr=adj_lr)
+        return th.optim.SGD(params, lr=adj_lr, weight_decay=wd)
     elif opt == Optimizer.SPARSE_ADAM:
         return th.optim.SparseAdam(params, lr=adj_lr)
     elif opt == Optimizer.SPARSER_SGD:
