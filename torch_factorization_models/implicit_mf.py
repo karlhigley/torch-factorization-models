@@ -33,8 +33,9 @@ class ImplicitMatrixFactorization(pl.LightningModule):
             hparams.num_items, hparams.embedding_dim, sparse=self.sparse
         )
 
+        # Registering this as a buffer makes model.cuda() work properly
+        self.register_buffer("global_bias_idx", th.LongTensor([0], device=self.device))
         self.global_bias = th.nn.Embedding(1, 1, sparse=self.sparse)
-        self.global_bias_idx = th.LongTensor([0]).to(device=self.device)
 
         init_std = 1.0 / sqrt(hparams.embedding_dim)
 
