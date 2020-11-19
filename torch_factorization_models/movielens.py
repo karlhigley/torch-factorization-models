@@ -161,14 +161,19 @@ class MovielensDataModule(pl.LightningDataModule):
 
         self.training, self.tuning, self.testing = random_split(self.dataset, splits)
 
-    def train_dataloader(self):
-        return DataLoader(
-            self.training,
-            num_workers=self.num_workers,
-            batch_size=self.batch_size,
-            shuffle=True,
-            pin_memory=True,
-        )
+    def train_dataloader(self, by_user=False):
+        if by_user:
+            return DataLoader(
+                MovielensEvalDataset(self.training), batch_size=self.batch_size,
+            )
+        else:
+            return DataLoader(
+                self.training,
+                num_workers=self.num_workers,
+                batch_size=self.batch_size,
+                shuffle=True,
+                pin_memory=True,
+            )
 
     def val_dataloader(self, by_user=False):
         if by_user:
