@@ -218,12 +218,12 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         parser.set_defaults(use_biases=False)
 
         # training specific (for this model)
-        parser.add_argument("--loss", default="hinge", type=str)
+        parser.add_argument("--loss", default="logistic", type=str)
 
-        parser.add_argument("--learning_rate", default=1e-2, type=float)
+        parser.add_argument("--learning_rate", default=1e-1, type=float)
         parser.add_argument("--weight_decay", default=1e-2, type=float)
 
-        parser.add_argument("--optimizer", default="sparser_adamw", type=str)
+        parser.add_argument("--optimizer", default="sgd", type=str)
 
         parser.add_argument("--momentum", default=0.9, type=float)
         parser.add_argument("--beta1", default=0.9, type=float)
