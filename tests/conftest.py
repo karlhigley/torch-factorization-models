@@ -111,9 +111,9 @@ class TestDataModule(pl.LightningDataModule):
 def initialized_model():
     args = [
         "--num_users",
-        "100",
+        str(100),
         "--num_items",
-        "100",
+        str(100),
     ]
 
     parser = ArgumentParser(add_help=False)
@@ -133,7 +133,12 @@ def trained_model():
         str(100),
         "--max_epochs",
         str(100),
+        "--num_workers",
+        str(4),
     ]
+
+    if th.cuda.is_available():
+        args = args + ["--gpus", str(1)]
 
     parser = ArgumentParser(add_help=False)
     parser = Trainer.add_argparse_args(parser)
