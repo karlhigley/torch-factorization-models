@@ -9,7 +9,7 @@ from tests.conftest import raw_predictions
 def test_hinge_loss_range(raw_predictions):
     positives, negatives = raw_predictions
 
-    loss = hinge_loss(th.tensor(positives), th.tensor(negatives)).mean()
+    loss = hinge_loss(th.tensor(positives), th.tensor(negatives), margin=1.0).mean()
     assert (loss >= 0.0).all()
     assert (loss <= 2.0).all()
 
