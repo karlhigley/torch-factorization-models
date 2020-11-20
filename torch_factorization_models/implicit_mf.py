@@ -114,14 +114,14 @@ class ImplicitMatrixFactorization(pl.LightningModule):
     @th.no_grad()
     def validation_step(self, batch, batch_idx):
         loss = self.batch_loss(batch, batch_idx)
-        result = pl.EvalResult(loss)
+        result = pl.EvalResult(checkpoint_on=loss)
         result.log("tuning_loss", loss, on_step=False, on_epoch=True)
         return result
 
     @th.no_grad()
     def test_step(self, batch, batch_idx):
         loss = self.batch_loss(batch, batch_idx)
-        result = pl.EvalResult(loss)
+        result = pl.EvalResult(checkpoint_on=loss)
         result.log("testing_loss", loss, on_step=False, on_epoch=True)
         return result
 
