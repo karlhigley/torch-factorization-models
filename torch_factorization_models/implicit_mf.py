@@ -70,14 +70,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
     def batch_loss(self, batch, batch_idx):
         user_ids = batch["user_ids"]
         item_ids = batch["item_ids"]
-
-        neg_item_ids = th.randint_like(
-            item_ids,
-            low=0,
-            high=self.item_embeddings.num_embeddings,
-            dtype=th.int64,
-            device=self.device,
-        )
+        neg_item_ids = batch["neg_item_ids"]
 
         user_vectors = self.user_embeddings(user_ids).squeeze()
         pos_item_vectors = self.item_embeddings(item_ids).squeeze()

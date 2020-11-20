@@ -46,10 +46,16 @@ class TestDataset(th.utils.data.Dataset):
         return self.num_examples
 
     def __getitem__(self, index):
+        item_ids = th.tensor([index])
+        user_ids = th.tensor([index])
+        neg_item_ids = th.randint_like(item_ids, self.num_examples)
+        targets = th.tensor([1.0])
+
         return {
-            "user_ids": th.tensor([index]),
-            "item_ids": th.tensor([index]),
-            "targets": th.tensor([1.0]),
+            "user_ids": item_ids,
+            "item_ids": user_ids,
+            "neg_item_ids": neg_item_ids,
+            "targets": targets,
         }
 
 

@@ -56,10 +56,19 @@ class MovielensDataset(th.utils.data.Dataset):
         return self.targets.shape[0]
 
     def __getitem__(self, index):
+        user_id = self.user_ids[index]
+        item_id = self.item_ids[index]
+        target = self.targets[index]
+
+        neg_item_id = th.randint_like(
+            item_id, low=0, high=self.num_items, dtype=th.int64
+        )
+
         return {
-            "user_ids": self.user_ids[index],
-            "item_ids": self.item_ids[index],
-            "targets": self.targets[index],
+            "user_ids": user_id,
+            "item_ids": item_id,
+            "neg_item_ids": neg_item_id,
+            "targets": target,
         }
 
 
