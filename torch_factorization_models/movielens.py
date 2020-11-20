@@ -66,67 +66,68 @@ class MovielensDataset(th.utils.data.Dataset):
 class MovielensEvalDataset(Dataset):
     def __init__(self, subset):
         self.subset = subset
-        self.interactions = self._build_interaction_vectors(subset)
+
+        self.num_users = subset.dataset.num_users
+        self.num_items = subset.dataset.num_items
+
+        self.interactions = self._build_interaction_vectors(
+            subset.dataset, subset.indices, self.num_users, self.num_items
+        )
 
     def __len__(self):
-        return len(self.interactions.keys())
+        return self.num_users
 
     def __getitem__(self, index):
         user_id = int(index)
         user_interactions = self.interactions[user_id]
 
         return {
-            "user_ids": th.tensor([user_id]),
+            "user_ids": th.tensor([user_id], device=user_interactions.device),
             "interactions": user_interactions,
         }
 
-    def _build_interaction_vectors(self, subset):
-        num_users = subset.dataset.num_users
-        num_items = subset.dataset.num_items
+    def _build_interaction_vectors(self, dataset, indices, num_users, num_items):
+        sorted_indices = sorted(indices)
 
-        interactions = defaultdict(
-            lambda: self._empty_sparse_vector(num_users, num_items)
-        )
+        user_ids = dataset.user_ids[sorted_indices]
+        item_ids = dataset.item_ids[sorted_indices]
+        targets = dataset.targets[sorted_indices]
 
-        # Create a sparse vector for each user's item interactions
-        current_user_id = 0
-        current_item_ids = []
+        default_value = self._empty_sparse_vector(num_users, num_items, user_ids.device)
+        interactions = defaultdict(lambda: default_value.clone().detach())
 
-        for index in sorted(subset.indices):
-            example = subset.dataset[index]
-            user_id = example["user_ids"]
-            item_id = example["item_ids"]
+        # Find unique user id values
+        unique_user_ids = th.unique(user_ids)
 
-            if user_id != current_user_id:
-                # Build sparse vector with accumulated interactions
-                interactions[int(user_id)] = self._sparse_vector(
-                    current_user_id, current_item_ids, num_users, num_items,
-                )
-
-                # Clear accumulators for the next user
-                current_user_id = user_id
-                current_item_ids = []
-
-            # Add the current item to the interactions for this user
-            current_item_ids.append(item_id)
+        for n, current_user_id in enumerate(unique_user_ids):
+            current_user_indices = user_ids == current_user_id
+            current_item_ids = item_ids[current_user_indices]
+            current_targets = targets[current_user_indices]
+            interactions[int(current_user_id)] = self._sparse_vector(
+                current_user_id,
+                current_item_ids,
+                current_targets,
+                num_users,
+                num_items,
+            )
 
         return interactions
 
-    def _sparse_vector(self, user_id, item_ids, num_users, num_items):
-        item_indices = th.tensor(item_ids, dtype=th.int64)
+    def _sparse_vector(self, user_id, item_ids, targets, num_users, num_items):
+        item_indices = item_ids.to(dtype=th.int64)
         user_indices = th.empty_like(item_indices, dtype=th.int64).fill_(user_id)
-        item_labels = th.ones_like(item_indices, dtype=th.float64)
+        item_labels = targets.to(dtype=th.float64)
 
         return th.sparse.FloatTensor(
             th.stack([user_indices, item_indices]), item_labels, (num_users, num_items)
         )
 
-    def _empty_sparse_vector(self, num_users, num_items):
+    def _empty_sparse_vector(self, num_users, num_items, device):
         return th.sparse.FloatTensor(
             th.tensor([[], []], dtype=th.int64),
             th.tensor([], dtype=th.float64),
             (num_users, num_items),
-        )
+        ).to(device=device)
 
 
 class MovielensDataModule(pl.LightningDataModule):
