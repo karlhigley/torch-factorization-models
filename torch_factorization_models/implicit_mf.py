@@ -18,6 +18,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         self.loss_fn = resolve_loss(hparams.loss)
         self.learning_rate = hparams.learning_rate
         self.weight_decay = hparams.weight_decay
+        self.use_biases = hparams.use_biases
 
         self.user_embeddings = th.nn.Embedding(
             hparams.num_users, hparams.embedding_dim, sparse=True
@@ -27,10 +28,6 @@ class ImplicitMatrixFactorization(pl.LightningModule):
             hparams.num_items, hparams.embedding_dim, sparse=True
         )
 
-        self.user_biases = th.nn.Embedding(hparams.num_users, 1, sparse=True)
-
-        self.item_biases = th.nn.Embedding(hparams.num_items, 1, sparse=True)
-
         self.global_bias = th.nn.Embedding(1, 1, sparse=True)
         self.global_bias_idx = th.LongTensor([0]).to(device=self.device)
 
@@ -38,9 +35,14 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
         th.nn.init.normal_(self.user_embeddings.weight, 0, init_std)
         th.nn.init.normal_(self.item_embeddings.weight, 0, init_std)
-        th.nn.init.normal_(self.user_biases.weight, 0, init_std)
-        th.nn.init.normal_(self.item_biases.weight, 0, init_std)
         th.nn.init.normal_(self.global_bias.weight, 0, init_std)
+
+        if self.use_biases:
+            self.user_biases = th.nn.Embedding(hparams.num_users, 1, sparse=True)
+            self.item_biases = th.nn.Embedding(hparams.num_items, 1, sparse=True)
+
+            th.nn.init.normal_(self.user_biases.weight, 0, init_std)
+            th.nn.init.normal_(self.item_biases.weight, 0, init_std)
 
     def configure_optimizers(self):
         return SparserAdamW(
@@ -51,7 +53,12 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         self, user_vectors, item_vectors, user_biases, item_biases, global_bias
     ):
         dots = (user_vectors * item_vectors).sum(dim=1)
-        biases = user_biases + item_biases + global_bias
+
+        if self.use_biases:
+            biases = user_biases + item_biases + global_bias
+        else:
+            biases = global_bias
+
         return th.sigmoid(dots + biases)
 
     def loss_step(self, batch, batch_idx):
@@ -71,9 +78,13 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         neg_item_vectors = self.item_embeddings(neg_item_ids).squeeze()
 
         global_bias = self.global_bias(th.tensor(0, device=self.device)).squeeze()
-        user_biases = self.user_biases(user_ids).squeeze()
-        pos_item_biases = self.item_biases(item_ids).squeeze()
-        neg_item_biases = self.item_biases(neg_item_ids).squeeze()
+
+        if self.use_biases:
+            user_biases = self.user_biases(user_ids).squeeze()
+            pos_item_biases = self.item_biases(item_ids).squeeze()
+            neg_item_biases = self.item_biases(neg_item_ids).squeeze()
+        else:
+            user_biases = pos_item_biases = neg_item_biases = None
 
         pos_preds = self.forward(
             user_vectors, pos_item_vectors, user_biases, pos_item_biases, global_bias
@@ -101,6 +112,13 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         parser.add_argument("--embedding_dim", default=32, type=int)
         parser.add_argument("--num_users", default=1, type=int)
         parser.add_argument("--num_items", default=1, type=int)
+
+        biases_parser = parser.add_mutually_exclusive_group(required=False)
+        biases_parser.add_argument("--biases", dest="use_biases", action="store_true")
+        biases_parser.add_argument(
+            "--no-biases", dest="use_biases", action="store_false"
+        )
+        parser.set_defaults(use_biases=False)
 
         # training specific (for this model)
         parser.add_argument("--learning_rate", default=1e-2, type=float)
