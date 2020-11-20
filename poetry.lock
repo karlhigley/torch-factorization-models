@@ -643,6 +643,17 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 version = "5.3.1"
 
 [[package]]
+category = "main"
+description = "Common ranking metrics implemented with PyTorch"
+name = "ranking-metrics-torch"
+optional = false
+python-versions = ">=3.7,<4.0"
+version = "0.3.0"
+
+[package.dependencies]
+torch = ">=1.5.0,<2.0.0"
+
+[[package]]
 category = "dev"
 description = "Alternative regular expression module, to replace re."
 name = "regex"
@@ -1008,7 +1019,7 @@ python-versions = "*"
 version = "1.12.1"
 
 [metadata]
-content-hash = "fdc4a6a31e407826ddd9b8105b8c62ec53cebc7255a456489182d3031da12aa4"
+content-hash = "1da0b97272a9dc29ee071d4bb196b6b17be5ff52cd1d5f76511c5ccb218295f2"
 python-versions = "^3.8"
 
 [metadata.files]
@@ -1388,6 +1399,10 @@ pyyaml = [
     {file = "PyYAML-5.3.1-cp38-cp38-win32.whl", hash = "sha256:06a0d7ba600ce0b2d2fe2e78453a470b5a6e000a985dd4a4e54e436cc36b0e97"},
     {file = "PyYAML-5.3.1-cp38-cp38-win_amd64.whl", hash = "sha256:95f71d2af0ff4227885f7a6605c37fd53d3a106fcab511b8860ecca9fcf400ee"},
     {file = "PyYAML-5.3.1.tar.gz", hash = "sha256:b8eac752c5e14d3eca0e6dd9199cd627518cb5ec06add0de9d32baeee6fe645d"},
+]
+ranking-metrics-torch = [
+    {file = "ranking-metrics-torch-0.3.0.tar.gz", hash = "sha256:6356e9e97881ff92d9ca0cccca059e9ce3a9eece8bef39e7f9c1d32e919ef8f0"},
+    {file = "ranking_metrics_torch-0.3.0-py3-none-any.whl", hash = "sha256:109fa8e6922976d41e299d70c305195e2facbbc0fa7c2fff8b8fa592cc6d1e59"},
 ]
 regex = [
     {file = "regex-2020.10.15-cp27-cp27m-win32.whl", hash = "sha256:e935a166a5f4c02afe3f7e4ce92ce5a786f75c6caa0c4ce09c922541d74b77e8"},

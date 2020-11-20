@@ -5,6 +5,8 @@ from math import sqrt
 import pytorch_lightning as pl
 import torch as th
 from pytorch_lightning.core.decorators import auto_move_data
+from ranking_metrics_torch.cumulative_gain import ndcg_at
+from ranking_metrics_torch.precision_recall import precision_at, recall_at
 
 from torch_factorization_models.losses import select_loss
 from torch_factorization_models.optimizers import build_optimizer
@@ -125,7 +127,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
     @auto_move_data
     @th.no_grad()
-    def eval_predict(self, user_ids):
+    def eval_predict(self, user_ids, num_items=1):
         query_vectors = self.user_embeddings(user_ids).squeeze()
         query_biases = (
             self.user_biases(user_ids).squeeze()
@@ -144,12 +146,67 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
     @auto_move_data
     @th.no_grad()
+    def evaluation_step(self, batch, batch_idx, prediction_fn):
+        user_ids = batch["user_ids"]
+        interactions = batch["interactions"].coalesce()
+
+        # Summing non-overlapping sparse vectors along the batch dim
+        # just condenses them into a single vector
+        # Then we extract the relevant rows and convert them to a dense vector
+        condensed = th.sparse.sum(interactions, 0)
+        labels = (
+            th.stack([condensed[int(user_id)] for user_id in user_ids])
+            .to_dense()
+            .to(dtype=th.float64)
+        )
+
+        # Score all the items for each user in the batch
+        predictions = prediction_fn(th.unique(user_ids), self.hparams.num_items).to(
+            dtype=th.float64
+        )
+
+        # Compute per-user metrics
+        batch_precisions = precision_at(self.hparams.eval_cutoff, predictions, labels)
+        batch_recalls = recall_at(self.hparams.eval_cutoff, predictions, labels)
+        batch_ndcgs = ndcg_at(self.hparams.eval_cutoff, predictions, labels)
+
+        metrics = {
+            "precision": batch_precisions.squeeze(),
+            "recall": batch_recalls.squeeze(),
+            "ndcg": batch_ndcgs.squeeze(),
+        }
+        return metrics
+
+    @auto_move_data
+    @th.no_grad()
+    def compute_validation_metrics(self, dataloader, prediction_fn):
+        outputs = []
+
+        for batch_idx, batch in enumerate(dataloader):
+            output = self.evaluation_step(batch, batch_idx, prediction_fn)
+            outputs.append(output)
+
+        precisions = th.cat([batch["precision"].flatten() for batch in outputs])
+        recalls = th.cat([batch["recall"].flatten() for batch in outputs])
+        ndcgs = th.cat([batch["ndcg"].flatten() for batch in outputs])
+
+        # Only include users that have relevant items in the average metrics
+        metrics = {
+            "precision": precisions[~th.isnan(precisions)].mean(),
+            "recall": recalls[~th.isnan(recalls)].mean(),
+            "ndcg": ndcgs[~th.isnan(ndcgs)].mean(),
+        }
+
+        return metrics
+
+    @auto_move_data
+    @th.no_grad()
     def similar_to_users(self, user_ids, k=10):
         query_vectors = self.user_embeddings(user_ids).squeeze()
         query_biases = (
             self.user_biases(user_ids).squeeze()
             if self.use_biases
-            else th.empty((1, 1))
+            else th.empty((1, 1), device=self.device)
         )
 
         query_biases = th.ones_like(query_biases)
@@ -163,7 +220,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         query_biases = (
             self.item_biases(item_ids).squeeze()
             if self.use_biases
-            else th.empty((1, 1))
+            else th.empty((1, 1), device=self.device)
         )
 
         return self.similar_to_vectors(query_vectors, query_biases, k)
@@ -187,7 +244,9 @@ class ImplicitMatrixFactorization(pl.LightningModule):
     ):
         dots = query_vectors.mm(item_vectors.t())
 
-        biases = th.zeros((query_vectors.shape[0], item_biases.shape[0]))
+        biases = th.zeros(
+            (query_vectors.shape[0], item_biases.shape[0]), device=self.device
+        )
         biases += self.global_bias(self.global_bias_idx).squeeze()
 
         if self.use_biases:
@@ -228,5 +287,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         parser.add_argument("--momentum", default=0.9, type=float)
         parser.add_argument("--beta1", default=0.9, type=float)
         parser.add_argument("--beta2", default=0.999, type=float)
+
+        parser.add_argument("--eval_cutoff", default=100, type=int)
 
         return parser
