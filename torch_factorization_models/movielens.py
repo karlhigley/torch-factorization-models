@@ -139,8 +139,11 @@ class MovielensEvalDataset(Dataset):
         item_ids = dataset.item_ids[sorted_indices]
         targets = dataset.targets[sorted_indices]
 
-        default_value = self._empty_sparse_vector(num_users, num_items, user_ids.device)
-        interactions = defaultdict(lambda: default_value.clone().detach())
+        device = user_ids.device
+
+        interactions = defaultdict(
+            lambda: self._empty_sparse_vector(num_users, num_items, device)
+        )
 
         # Find unique user id values
         unique_user_ids = th.unique(user_ids)
@@ -155,18 +158,19 @@ class MovielensEvalDataset(Dataset):
                 current_targets,
                 num_users,
                 num_items,
+                device,
             )
 
         return interactions
 
-    def _sparse_vector(self, user_id, item_ids, targets, num_users, num_items):
+    def _sparse_vector(self, user_id, item_ids, targets, num_users, num_items, device):
         item_indices = item_ids.to(dtype=th.int64)
         user_indices = th.empty_like(item_indices, dtype=th.int64).fill_(user_id)
         item_labels = targets.to(dtype=th.float64)
 
         return th.sparse.FloatTensor(
             th.stack([user_indices, item_indices]), item_labels, (num_users, num_items)
-        )
+        ).to(device=device)
 
     def _empty_sparse_vector(self, num_users, num_items, device):
         return th.sparse.FloatTensor(
