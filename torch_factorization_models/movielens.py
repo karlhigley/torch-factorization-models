@@ -81,6 +81,9 @@ class MovielensDataset(th.utils.data.Dataset):
     def __len__(self):
         return self.targets.shape[0]
 
+    def __iter__(self):
+        return (self[index] for index in range(len(self)))
+
     def __getitem__(self, index):
         user_id = self.user_ids[index]
         item_id = self.item_ids[index]
@@ -116,6 +119,9 @@ class MovielensEvalDataset(Dataset):
 
     def __len__(self):
         return self.num_users
+
+    def __iter__(self):
+        return (self[index] for index in range(len(self)))
 
     def __getitem__(self, index):
         user_id = int(index)
