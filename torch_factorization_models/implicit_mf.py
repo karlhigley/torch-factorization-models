@@ -132,7 +132,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         query_biases = (
             self.user_biases(user_ids).squeeze()
             if self.use_biases
-            else th.empty((1, 1))
+            else th.zeros((1, 1))
         )
 
         item_vectors = self.item_embeddings.weight.squeeze()
@@ -206,7 +206,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         query_biases = (
             self.user_biases(user_ids).squeeze()
             if self.use_biases
-            else th.empty((1, 1), device=self.device)
+            else th.zeros((1, 1), device=self.device)
         )
 
         query_biases = th.ones_like(query_biases)
@@ -220,7 +220,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         query_biases = (
             self.item_biases(item_ids).squeeze()
             if self.use_biases
-            else th.empty((1, 1), device=self.device)
+            else th.zeros((1, 1), device=self.device)
         )
 
         return self.similar_to_vectors(query_vectors, query_biases, k)
