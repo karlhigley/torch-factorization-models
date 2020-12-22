@@ -1,7 +1,6 @@
 import logging
 from argparse import ArgumentParser
 from collections import defaultdict
-from math import floor
 from pathlib import Path
 
 import numpy as np
@@ -10,9 +9,32 @@ import pytorch_lightning as pl
 import torch as th
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import Binarizer, OrdinalEncoder
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset, Subset, random_split
+from torch._utils import _accumulate
 
 logger = logging.getLogger("movielens-dataset")
+
+
+def sequential_split(dataset, lengths):
+    r"""
+    Sequentially split a dataset into non-overlapping new datasets of given lengths.
+
+    >>> sequential_split(range(10), [3, 7])
+
+    Arguments:
+        dataset (Dataset): Dataset to be split
+        lengths (sequence): lengths of splits to be produced
+    """
+    if sum(lengths) != len(dataset):
+        raise ValueError(
+            "Sum of input lengths does not equal the length of the input dataset!"
+        )
+
+    indices = list(range(sum(lengths)))
+    return [
+        Subset(dataset, indices[offset - length : offset])
+        for offset, length in zip(_accumulate(lengths), lengths)
+    ]
 
 
 class MovielensDataset(th.utils.data.Dataset):
@@ -24,7 +46,11 @@ class MovielensDataset(th.utils.data.Dataset):
             columns={"userId": "user_id", "movieId": "item_id", "rating": "target"}
         )
 
-        interactions = interactions[interactions["target"] >= threshold].copy()
+        interactions = (
+            interactions[interactions["target"] >= threshold]
+            .copy()
+            .sort_values(by=["timestamp"])
+        )
 
         xformer = ColumnTransformer(
             [
@@ -155,16 +181,17 @@ class MovielensDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         num_examples = len(self.dataset)
-        tune_examples = test_examples = floor(0.1 * num_examples)
+        tune_examples = test_examples = num_examples // 10
         train_examples = num_examples - test_examples - tune_examples
+        evaluation_examples = tune_examples + test_examples
 
-        splits = (
-            train_examples,
-            tune_examples,
-            test_examples,
+        self.training, evaluation = sequential_split(
+            self.dataset, [train_examples, evaluation_examples]
         )
 
-        self.training, self.tuning, self.testing = random_split(self.dataset, splits)
+        self.tuning, self.testing = random_split(
+            evaluation, [tune_examples, test_examples]
+        )
 
     def train_dataloader(self, by_user=False):
         if by_user:
