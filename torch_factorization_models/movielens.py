@@ -66,17 +66,13 @@ class MovielensDataset(th.utils.data.Dataset):
         )
 
         self.preprocessor = xformer
+
         self.user_ids = th.tensor(interactions["user_id"].values, dtype=th.int64)
         self.item_ids = th.tensor(interactions["item_id"].values, dtype=th.int64)
         self.targets = th.tensor(interactions["target"].values, dtype=th.float64)
 
-    @property
-    def num_users(self):
-        return int(self.user_ids.max()) + 1
-
-    @property
-    def num_items(self):
-        return int(self.item_ids.max()) + 1
+        self.num_users = int(self.user_ids.max()) + 1
+        self.num_items = int(self.user_ids.max()) + 1
 
     def __len__(self):
         return self.targets.shape[0]
