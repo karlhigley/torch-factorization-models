@@ -38,7 +38,7 @@ def sequential_split(dataset, lengths):
 
 
 class MovielensDataset(th.utils.data.Dataset):
-    def __init__(self, path, filename="ratings.csv", threshold=3.5):
+    def __init__(self, path, filename, threshold):
         interactions_path = Path(path) / filename
         interactions = pd.read_csv(interactions_path)
 
@@ -173,10 +173,16 @@ class MovielensEvalDataset(Dataset):
 
 
 class MovielensDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir=".", batch_size=64, num_workers=1):
+    def __init__(
+        self,
+        data_dir=".",
+        filename="ratings.csv",
+        threshold=3.5,
+        batch_size=64,
+        num_workers=1,
+    ):
         super().__init__()
-        self.data_dir = data_dir
-        self.dataset = MovielensDataset(self.data_dir)
+        self.dataset = MovielensDataset(data_dir, filename, threshold)
 
         self.batch_size = batch_size
         self.num_workers = num_workers
