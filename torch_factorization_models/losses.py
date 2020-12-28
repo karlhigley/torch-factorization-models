@@ -14,7 +14,7 @@ class LossFunction(enum.Enum):
     WARP = "warp"
 
 
-def select_loss(name):
+def select_loss(name, num_items):
     enum = LossFunction(name)
     if enum == LossFunction.LOGISTIC:
         return logistic_loss
@@ -23,7 +23,7 @@ def select_loss(name):
     elif enum == LossFunction.HINGE:
         return hinge_loss
     elif enum == LossFunction.WARP:
-        return warp_loss
+        return build_warp_loss(num_items)
     else:
         raise ValueError(f"Unknown loss function '{name}'")
 
@@ -41,16 +41,18 @@ def bpr_loss(pos_preds, neg_preds):
 def hinge_loss(pos_preds, neg_preds, margin=0.1):
     distances = th.sigmoid(pos_preds) - th.sigmoid(neg_preds)
     raw_losses = th.max(margin - distances, th.zeros_like(distances))
-    margin_coeff = th.empty_like(raw_losses).fill_(1.0 / margin)
 
-    return raw_losses * margin_coeff
+    return raw_losses / margin
 
 
-def warp_loss(pos_preds, neg_preds, num_items, margin=0.1):
-    num_samples = neg_preds.shape[1]
-    raw_losses = hinge_loss(pos_preds.expand(neg_preds.shape), neg_preds, margin)
-    num_impostors = (raw_losses != 0.0).sum(dim=1)
-    weights = th.log(1 + th.floor((num_impostors * num_items).true_divide(num_samples)))
-    margin_coeff = th.empty_like(raw_losses).fill_(1.0 / margin)
+def build_warp_loss(num_items):
+    def warp_loss(pos_preds, neg_preds, margin=0.1):
+        raw_losses = hinge_loss(pos_preds, neg_preds, margin)
 
-    return raw_losses * weights.reshape(-1, 1).expand(raw_losses.shape) * margin_coeff
+        num_samples = neg_preds.shape[1]
+        num_impostors = (raw_losses != 0.0).sum(dim=1)
+        weights = th.log(1.0 + (num_impostors * num_items) // num_samples)
+
+        return (raw_losses * weights.unsqueeze(1)) / margin
+
+    return warp_loss
