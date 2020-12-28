@@ -38,7 +38,7 @@ def sequential_split(dataset, lengths):
 
 
 class MovielensDataset(th.utils.data.Dataset):
-    def __init__(self, path, filename="ratings.csv", threshold=4.0):
+    def __init__(self, path, filename="ratings.csv", threshold=3.5):
         interactions_path = Path(path) / filename
         interactions = pd.read_csv(interactions_path)
 
