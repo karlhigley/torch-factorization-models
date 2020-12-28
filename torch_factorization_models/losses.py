@@ -30,9 +30,7 @@ def select_loss(name):
 
 def logistic_loss(pos_preds, neg_preds, truncate_at=INFINITY):
     raw_losses = th.log1p(th.exp(-pos_preds)) + th.log1p(th.exp(neg_preds))
-    return th.min(
-        raw_losses * LOGISTIC_COEFF, th.empty_like(raw_losses).fill_(truncate_at)
-    )
+    return th.clamp(raw_losses * LOGISTIC_COEFF, 0.0, truncate_at)
 
 
 def bpr_loss(pos_preds, neg_preds):
