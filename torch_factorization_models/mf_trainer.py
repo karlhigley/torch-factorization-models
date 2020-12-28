@@ -1,4 +1,3 @@
-import logging
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -12,8 +11,6 @@ from torch_factorization_models.movielens import MovielensDataModule
 # sets seeds for numpy, torch, etc...
 # must do for DDP to work well
 seed_everything(42)
-
-logger = logging.getLogger("implicit-mf-trainer")
 
 
 def main(args):
@@ -29,8 +26,6 @@ def main(args):
 
     args.num_items = movielens.dataset.num_items
     args.num_users = movielens.dataset.num_users
-
-    logger.warning(f"Num items: {args.num_items} Num users: {args.num_users}")
 
     # Set up the model and logger
     model = ImplicitMatrixFactorization(hparams=args)

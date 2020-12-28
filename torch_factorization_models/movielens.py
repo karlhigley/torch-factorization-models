@@ -1,4 +1,3 @@
-import logging
 from argparse import ArgumentParser
 from collections import defaultdict
 from pathlib import Path
@@ -11,8 +10,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import Binarizer, OrdinalEncoder
 from torch.utils.data import DataLoader, Dataset, Subset, random_split
 from torch._utils import _accumulate
-
-logger = logging.getLogger("movielens-dataset")
 
 
 def sequential_split(dataset, lengths):

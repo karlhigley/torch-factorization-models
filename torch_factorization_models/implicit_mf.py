@@ -1,4 +1,3 @@
-import logging
 from argparse import ArgumentParser
 from math import sqrt
 
@@ -10,8 +9,6 @@ from ranking_metrics_torch.precision_recall import precision_at, recall_at
 
 from torch_factorization_models.losses import select_loss
 from torch_factorization_models.optimizers import build_optimizer
-
-logger = logging.getLogger("matrix-factorization")
 
 
 class ImplicitMatrixFactorization(pl.LightningModule):
