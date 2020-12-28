@@ -61,9 +61,22 @@ class ImplicitMatrixFactorization(pl.LightningModule):
     def forward(
         self, user_vectors, item_vectors, user_biases, item_biases, global_bias
     ):
-        dots = (user_vectors * item_vectors).sum(dim=1)
+
+        if len(item_vectors.shape) < 3:
+            item_vectors = item_vectors.unsqueeze(1)
+
+        if len(user_vectors.shape) < 3:
+            user_vectors = user_vectors.unsqueeze(1).expand(item_vectors.shape)
+
+        dots = (user_vectors * item_vectors).sum(dim=2)
 
         if self.use_biases:
+            if len(item_biases.shape) < 3:
+                item_biases = item_biases.unsqueeze(1)
+
+            if len(user_biases.shape) < 3:
+                user_biases = user_biases.unsqueeze(1).expand(item_biases.shape)
+
             biases = user_biases + item_biases + global_bias.expand(user_biases.shape)
         else:
             biases = global_bias
@@ -75,16 +88,16 @@ class ImplicitMatrixFactorization(pl.LightningModule):
         item_ids = batch["item_ids"]
         neg_item_ids = batch["neg_item_ids"]
 
-        user_vectors = self.user_embeddings(user_ids).squeeze()
-        pos_item_vectors = self.item_embeddings(item_ids).squeeze()
-        neg_item_vectors = self.item_embeddings(neg_item_ids).squeeze()
+        user_vectors = self.user_embeddings(user_ids)
+        pos_item_vectors = self.item_embeddings(item_ids)
+        neg_item_vectors = self.item_embeddings(neg_item_ids)
 
         global_bias = self.global_bias(th.tensor(0, device=self.device)).squeeze()
 
         if self.use_biases:
-            user_biases = self.user_biases(user_ids).squeeze()
-            pos_item_biases = self.item_biases(item_ids).squeeze()
-            neg_item_biases = self.item_biases(neg_item_ids).squeeze()
+            user_biases = self.user_biases(user_ids)
+            pos_item_biases = self.item_biases(item_ids)
+            neg_item_biases = self.item_biases(neg_item_ids)
         else:
             user_biases = pos_item_biases = neg_item_biases = None
 

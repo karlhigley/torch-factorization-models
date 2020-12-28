@@ -18,7 +18,14 @@ logger = logging.getLogger("implicit-mf-trainer")
 
 def main(args):
     # Load the dataset
-    movielens = MovielensDataModule(args.data_dir, args.batch_size, args.num_workers)
+    movielens = MovielensDataModule(
+        args.data_dir,
+        args.filename,
+        args.threshold,
+        args.negatives,
+        args.batch_size,
+        args.num_workers,
+    )
 
     args.num_items = movielens.dataset.num_items
     args.num_users = movielens.dataset.num_users

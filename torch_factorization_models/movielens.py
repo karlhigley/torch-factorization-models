@@ -38,7 +38,7 @@ def sequential_split(dataset, lengths):
 
 
 class MovielensDataset(th.utils.data.Dataset):
-    def __init__(self, path, filename, threshold):
+    def __init__(self, path, filename, threshold, negatives):
         interactions_path = Path(path) / filename
         interactions = pd.read_csv(interactions_path)
 
@@ -74,6 +74,8 @@ class MovielensDataset(th.utils.data.Dataset):
             interactions[["user_id", "item_id", "target"]].to_numpy(), dtype=th.int64
         )
 
+        self.negatives = negatives
+
     def __len__(self):
         return self.data.shape[0]
 
@@ -86,14 +88,18 @@ class MovielensDataset(th.utils.data.Dataset):
         item_id = row[1]
         target = row[2]
 
-        neg_item_id = th.randint_like(
-            item_id, low=0, high=self.num_items, dtype=th.int64
+        neg_item_ids = th.randint(
+            low=0,
+            high=self.num_items,
+            size=(self.negatives,),
+            dtype=th.int64,
+            device=self.data.device,
         )
 
         return {
             "user_ids": user_id,
             "item_ids": item_id,
-            "neg_item_ids": neg_item_id,
+            "neg_item_ids": neg_item_ids,
             "targets": target,
         }
 
@@ -178,11 +184,12 @@ class MovielensDataModule(pl.LightningDataModule):
         data_dir=".",
         filename="ratings.csv",
         threshold=3.5,
+        negatives=1,
         batch_size=64,
         num_workers=1,
     ):
         super().__init__()
-        self.dataset = MovielensDataset(data_dir, filename, threshold)
+        self.dataset = MovielensDataset(data_dir, filename, threshold, negatives)
 
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -243,6 +250,9 @@ class MovielensDataModule(pl.LightningDataModule):
         # DATASET specific
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
         parser.add_argument("--data_dir", default=".", type=str)
+        parser.add_argument("--filename", default="ratings.csv", type=str)
+        parser.add_argument("--threshold", default=3.5, type=float)
+        parser.add_argument("--negatives", default=1, type=int)
         parser.add_argument("--batch_size", default=512, type=int)
         parser.add_argument("--num_workers", default=1, type=int)
 
