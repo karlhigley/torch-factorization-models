@@ -197,9 +197,8 @@ class MovielensDataModule(pl.LightningDataModule):
 
     def train_dataloader(self, by_user=False):
         if by_user:
-            return DataLoader(
-                MovielensEvalDataset(self.training), batch_size=self.batch_size,
-            )
+            dataset = MovielensEvalDataset(self.training)
+            return DataLoader(dataset, batch_size=self.batch_size)
         else:
             return DataLoader(
                 self.training,
@@ -211,9 +210,8 @@ class MovielensDataModule(pl.LightningDataModule):
 
     def val_dataloader(self, by_user=False):
         if by_user:
-            return DataLoader(
-                MovielensEvalDataset(self.tuning), batch_size=self.batch_size,
-            )
+            dataset = MovielensEvalDataset(self.tuning)
+            return DataLoader(dataset, batch_size=self.batch_size)
         else:
             return DataLoader(
                 self.tuning,
@@ -224,9 +222,8 @@ class MovielensDataModule(pl.LightningDataModule):
 
     def test_dataloader(self, by_user=False):
         if by_user:
-            return DataLoader(
-                MovielensEvalDataset(self.testing), batch_size=self.batch_size,
-            )
+            dataset = MovielensEvalDataset(self.testing)
+            return DataLoader(dataset, batch_size=self.batch_size)
         else:
             return DataLoader(
                 self.testing,
