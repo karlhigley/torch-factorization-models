@@ -67,23 +67,24 @@ class MovielensDataset(th.utils.data.Dataset):
 
         self.preprocessor = xformer
 
-        self.user_ids = th.tensor(interactions["user_id"].values, dtype=th.int64)
-        self.item_ids = th.tensor(interactions["item_id"].values, dtype=th.int64)
-        self.targets = th.tensor(interactions["target"].values, dtype=th.float64)
+        self.num_users = int(interactions["user_id"].max()) + 1
+        self.num_items = int(interactions["item_id"].max()) + 1
 
-        self.num_users = int(self.user_ids.max()) + 1
-        self.num_items = int(self.user_ids.max()) + 1
+        self.data = th.tensor(
+            interactions[["user_id", "item_id", "target"]].to_numpy(), dtype=th.int64
+        )
 
     def __len__(self):
-        return self.targets.shape[0]
+        return self.data.shape[0]
 
     def __iter__(self):
         return (self[index] for index in range(len(self)))
 
     def __getitem__(self, index):
-        user_id = self.user_ids[index]
-        item_id = self.item_ids[index]
-        target = self.targets[index]
+        row = self.data[int(index)]
+        user_id = row[0]
+        item_id = row[1]
+        target = row[2]
 
         neg_item_id = th.randint_like(
             item_id, low=0, high=self.num_items, dtype=th.int64
@@ -97,9 +98,7 @@ class MovielensDataset(th.utils.data.Dataset):
         }
 
     def to_(self, *args, **kwargs):
-        self.user_ids = self.user_ids.to(*args, **kwargs)
-        self.item_ids = self.item_ids.to(*args, **kwargs)
-        self.targets = self.targets.to(*args, **kwargs)
+        self.data = self.data.to(*args, **kwargs)
 
 
 class MovielensEvalDataset(Dataset):
@@ -131,11 +130,8 @@ class MovielensEvalDataset(Dataset):
     def _build_interaction_vectors(self, dataset, indices, num_users, num_items):
         sorted_indices = sorted(indices)
 
-        user_ids = dataset.user_ids[sorted_indices]
-        item_ids = dataset.item_ids[sorted_indices]
-        targets = dataset.targets[sorted_indices]
-
-        device = user_ids.device
+        user_ids, item_ids, targets = dataset.data[sorted_indices].t()
+        device = dataset.data.device
 
         interactions = defaultdict(
             lambda: self._empty_sparse_vector(num_users, num_items, device)
