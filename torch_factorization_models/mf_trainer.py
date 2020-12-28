@@ -28,6 +28,9 @@ def main(args):
     # Set up the model and logger
     model = ImplicitMatrixFactorization(hparams=args)
 
+    if th.cuda.is_available() and args.gpus > 0:
+        model.cuda()
+
     wandb_logger = WandbLogger(project="torch-factorization-models")
     wandb_logger.watch(model, log="all", log_freq=100)
 
