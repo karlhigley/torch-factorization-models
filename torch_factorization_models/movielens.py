@@ -47,7 +47,7 @@ class MovielensDataset(th.utils.data.Dataset):
         )
 
         interactions = (
-            interactions[interactions["target"] >= threshold]
+            interactions[interactions["target"] > threshold]
             .copy()
             .sort_values(by=["timestamp"])
         )
