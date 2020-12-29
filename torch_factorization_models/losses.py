@@ -9,6 +9,7 @@ INFINITY = th.tensor(float("inf"))
 @enum.unique
 class LossFunction(enum.Enum):
     LOGISTIC = "logistic"
+    CROSSENTROPY = "crossentropy"
     BPR = "bpr"
     HINGE = "hinge"
     WARP = "warp"
@@ -18,6 +19,8 @@ def select_loss(name, num_items):
     enum = LossFunction(name)
     if enum == LossFunction.LOGISTIC:
         return logistic_loss
+    elif enum == LossFunction.CROSSENTROPY:
+        return cross_entropy_loss
     elif enum == LossFunction.BPR:
         return bpr_loss
     elif enum == LossFunction.HINGE:
@@ -31,6 +34,16 @@ def select_loss(name, num_items):
 def logistic_loss(pos_preds, neg_preds, truncate_at=INFINITY):
     raw_losses = th.log1p(th.exp(-pos_preds)) + th.log1p(th.exp(neg_preds))
     return th.clamp(raw_losses * LOGISTIC_COEFF, 0.0, truncate_at)
+
+
+def cross_entropy_loss(pos_preds, neg_preds):
+    def bce(logits, label):
+        return (
+            th.clamp(logits, min=0) - logits * label + th.log1p(th.exp(-th.abs(logits)))
+        )
+
+    losses = bce(pos_preds, 1.0) + bce(neg_preds, 0.0)
+    return losses
 
 
 def bpr_loss(pos_preds, neg_preds):
