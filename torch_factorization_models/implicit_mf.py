@@ -53,7 +53,9 @@ class ImplicitMatrixFactorization(pl.LightningModule):
             th.nn.init.zeros_(self.item_biases.weight)
 
     def configure_optimizers(self):
-        return build_optimizer(list(self.parameters()), self.hparams)
+        return build_optimizer(
+            list(self.parameters()), self.learning_rate, self.hparams
+        )
 
     def forward(
         self, user_vectors, item_vectors, user_biases, item_biases, global_bias

@@ -17,9 +17,9 @@ class Optimizer(enum.Enum):
     SPARSER_ADAMW = "sparser_adamw"
 
 
-def build_optimizer(params, hparams):
+def build_optimizer(params, learning_rate, hparams):
     wd = hparams.weight_decay
-    eff_lr = hparams.learning_rate
+    eff_lr = learning_rate
     opt_name = hparams.optimizer
 
     bs = hparams.batch_size

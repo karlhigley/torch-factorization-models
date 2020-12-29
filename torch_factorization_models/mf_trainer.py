@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import torch as th
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import WandbLogger
@@ -39,20 +40,43 @@ def main(args):
 
     # Most basic trainer, uses good defaults
     trainer = Trainer.from_argparse_args(
-        args, check_val_every_n_epoch=5, logger=wandb_logger
+        args, check_val_every_n_epoch=1, logger=wandb_logger
     )
 
-    trainer.fit(model, movielens)
+    if args.use_lr_finder:
+        movielens.setup()
 
-    # Save the model
-    th.save(model.state_dict(), Path(wandb_logger.experiment.dir) / "model.pt")
+        lr_finder = trainer.lr_find(
+            model,
+            train_dataloader=movielens.train_dataloader(),
+            val_dataloaders=[movielens.val_dataloader()],
+            early_stop_threshold=None,
+            min_lr=1e-6,
+            max_lr=5e-1,
+        )
+
+        lr_finder.plot(suggest=True)
+        plt.show(block=True)
+
+    else:
+        trainer.fit(model, movielens)
+
+        # Save the model
+        th.save(model.state_dict(), Path(wandb_logger.experiment.dir) / "model.pt")
 
 
 if __name__ == "__main__":
     parser = ArgumentParser(add_help=False)
 
-    # Add args from trainer
+    # Add args from trainer class
     parser = Trainer.add_argparse_args(parser)
+
+    # Add custom trainer arguments
+    lr_finding_parser = parser.add_mutually_exclusive_group(required=False)
+    lr_finding_parser.add_argument(
+        "--find_lr", dest="use_lr_finder", action="store_true"
+    )
+    parser.set_defaults(use_lr_finder=False)
 
     # Give the model and dataset a chance to add their own params
     parser = ImplicitMatrixFactorization.add_model_specific_args(parser)
