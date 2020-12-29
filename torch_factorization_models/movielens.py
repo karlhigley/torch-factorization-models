@@ -1,3 +1,4 @@
+import enum
 from argparse import ArgumentParser
 from collections import defaultdict
 from pathlib import Path
@@ -8,8 +9,14 @@ import pytorch_lightning as pl
 import torch as th
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import Binarizer, OrdinalEncoder
-from torch.utils.data import DataLoader, Dataset, Subset, random_split
 from torch._utils import _accumulate
+from torch.utils.data import DataLoader, Dataset, Subset, random_split
+
+
+@enum.unique
+class DataSplitting(enum.Enum):
+    RANDOM = "random"
+    TEMPORAL = "temporal"
 
 
 def sequential_split(dataset, lengths):
@@ -180,12 +187,14 @@ class MovielensDataModule(pl.LightningDataModule):
         self,
         data_dir=".",
         filename="ratings.csv",
+        split="random",
         threshold=3.5,
         negatives=1,
         batch_size=64,
         num_workers=1,
     ):
         super().__init__()
+        self.split = split
         self.dataset = MovielensDataset(data_dir, filename, threshold, negatives)
 
         self.batch_size = batch_size
@@ -195,15 +204,29 @@ class MovielensDataModule(pl.LightningDataModule):
         num_examples = len(self.dataset)
         tune_examples = test_examples = num_examples // 10
         train_examples = num_examples - test_examples - tune_examples
-        evaluation_examples = tune_examples + test_examples
 
-        self.training, evaluation = sequential_split(
-            self.dataset, [train_examples, evaluation_examples]
-        )
+        strategy = DataSplitting(self.split)
 
-        self.tuning, self.testing = random_split(
-            evaluation, [tune_examples, test_examples]
-        )
+        if strategy == DataSplitting.TEMPORAL:
+            evaluation_examples = tune_examples + test_examples
+
+            self.training, evaluation = sequential_split(
+                self.dataset, [train_examples, evaluation_examples]
+            )
+
+            self.tuning, self.testing = random_split(
+                evaluation, [tune_examples, test_examples]
+            )
+        else:  # strategy == DataSplitting.RANDOM
+            splits = (
+                train_examples,
+                tune_examples,
+                test_examples,
+            )
+
+            self.training, self.tuning, self.testing = random_split(
+                self.dataset, splits
+            )
 
     def train_dataloader(self, by_user=False):
         if by_user:
@@ -248,6 +271,7 @@ class MovielensDataModule(pl.LightningDataModule):
         parser = ArgumentParser(parents=[parent_parser], add_help=False)
         parser.add_argument("--data_dir", default=".", type=str)
         parser.add_argument("--filename", default="ratings.csv", type=str)
+        parser.add_argument("--split", default="random", type=str)
         parser.add_argument("--threshold", default=3.5, type=float)
         parser.add_argument("--negatives", default=1, type=int)
         parser.add_argument("--batch_size", default=512, type=int)

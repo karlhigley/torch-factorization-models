@@ -18,6 +18,7 @@ def main(args):
     movielens = MovielensDataModule(
         args.data_dir,
         args.filename,
+        args.split,
         args.threshold,
         args.negatives,
         args.batch_size,
