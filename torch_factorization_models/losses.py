@@ -144,7 +144,7 @@ def build_warp_loss(num_items, margin):
         raw_losses = hinge_loss(pos_preds, neg_preds)
 
         num_samples = neg_preds.shape[1]
-        num_impostors = (raw_losses != 0.0).sum(dim=1)
+        num_impostors = (raw_losses != 0.0).sum(dim=1).to(dtype=th.float32)
         weights = th.log1p((num_impostors * num_items) // num_samples)
 
         return (raw_losses * weights.unsqueeze(1)) / margin
