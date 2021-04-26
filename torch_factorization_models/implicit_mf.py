@@ -137,7 +137,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
     @auto_move_data
     @th.no_grad()
-    def similar_to_users(self, user_ids, k=10):
+    def similarity_to_users(self, user_ids):
         query_vectors = self.user_embeddings(user_ids).squeeze()
         query_biases = (
             self.user_biases(user_ids).squeeze()
@@ -147,11 +147,11 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
         query_biases = th.ones_like(query_biases)
 
-        return self.similar_to_vectors(query_vectors, query_biases, k)
+        return self.similarity_to_vectors(query_vectors, query_biases)
 
     @auto_move_data
     @th.no_grad()
-    def similar_to_items(self, item_ids, k=10):
+    def similarity_to_items(self, item_ids):
         query_vectors = self.item_embeddings(item_ids).squeeze()
         query_biases = (
             self.item_biases(item_ids).squeeze()
@@ -159,11 +159,11 @@ class ImplicitMatrixFactorization(pl.LightningModule):
             else th.zeros((1, 1), device=self.device)
         )
 
-        return self.similar_to_vectors(query_vectors, query_biases, k)
+        return self.similarity_to_vectors(query_vectors, query_biases)
 
     @auto_move_data
     @th.no_grad()
-    def similar_to_vectors(self, query_vectors, query_biases, k=10):
+    def similarity_to_vectors(self, query_vectors, query_biases):
         item_vectors = self.item_embeddings.weight.squeeze()
         item_biases = self.item_biases.weight.squeeze()
 
@@ -171,7 +171,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
             query_vectors, query_biases, item_vectors, item_biases
         )
 
-        return th.topk(scores, k)
+        return scores
 
     @auto_move_data
     @th.no_grad()
