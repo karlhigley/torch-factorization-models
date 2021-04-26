@@ -98,9 +98,6 @@ def build_hinge_loss(margin):
     def hinge_loss(pos_preds, neg_preds):
         """Ranking hinge loss
 
-        The computed losses are scaled by the margin so that changing the margin
-        results in losses with (approximately) constant scale.
-
         Args:
             pos_preds (th.Tensor): Logits for positive examples
             neg_preds (th.Tensor): Logits for negative examples
@@ -109,9 +106,9 @@ def build_hinge_loss(margin):
             th.Tensor: Computed losses for each example pair
         """
         distances = th.sigmoid(pos_preds) - th.sigmoid(neg_preds)
-        raw_losses = th.clamp(margin - distances, min=0)
+        raw_losses = th.clamp(margin - distances, min=0.0)
 
-        return raw_losses / margin
+        return raw_losses
 
     return hinge_loss
 
@@ -121,18 +118,16 @@ def build_warp_loss(num_items, margin):
 
     Args:
         num_items (int): Total number of items in the dataset
-        margin (float): Hinge loss margin
+        margin (float): Hinge loss margin (between 0.0 and 1.0)
 
     Returns:
         th.Tensor: Computed losses for each example pair
     """
     hinge_loss = build_hinge_loss(margin)
+    normalization_factor = margin * th.log1p(th.tensor(num_items, dtype=th.float32))
 
     def warp_loss(pos_preds, neg_preds):
         """Weighted Approximate Rank Pairwise loss
-
-        The computed losses are scaled by the margin so that changing the margin
-        results in losses with (approximately) constant scale.
 
         Args:
             pos_preds (th.Tensor): Logits for positive examples
@@ -145,8 +140,10 @@ def build_warp_loss(num_items, margin):
 
         num_samples = neg_preds.shape[1]
         num_impostors = (raw_losses != 0.0).sum(dim=1).to(dtype=th.float32)
-        weights = th.log1p((num_impostors * num_items) // num_samples)
+        weights = (
+            th.log1p((num_impostors * num_items) // num_samples) / normalization_factor
+        )
 
-        return (raw_losses * weights.unsqueeze(1)) / margin
+        return raw_losses * weights.unsqueeze(1)
 
     return warp_loss

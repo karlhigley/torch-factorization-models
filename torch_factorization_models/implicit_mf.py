@@ -17,7 +17,7 @@ class ImplicitMatrixFactorization(pl.LightningModule):
 
         self.hparams = hparams
 
-        self.loss_fn = select_loss(hparams.loss, hparams.num_items)
+        self.loss_fn = select_loss(hparams.loss, hparams.num_items, hparams.margin)
         self.learning_rate = hparams.learning_rate
         self.weight_decay = hparams.weight_decay
 
