@@ -4,6 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import torch as th
 from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
 from torch_factorization_models.implicit_mf import ImplicitMatrixFactorization
@@ -38,9 +39,15 @@ def main(args):
     wandb_logger = WandbLogger(project="torch-factorization-models")
     wandb_logger.watch(model, log="all", log_freq=100)
 
+    if args.early_stopping:
+        args.early_stopping = EarlyStopping(monitor="tuning_loss")
+
     # Most basic trainer, uses good defaults
     trainer = Trainer.from_argparse_args(
-        args, check_val_every_n_epoch=1, logger=wandb_logger
+        args,
+        check_val_every_n_epoch=1,
+        logger=wandb_logger,
+        early_stop_callback=args.early_stopping,
     )
 
     if args.use_lr_finder:
@@ -77,6 +84,12 @@ if __name__ == "__main__":
         "--find_lr", dest="use_lr_finder", action="store_true"
     )
     parser.set_defaults(use_lr_finder=False)
+
+    early_stopping_parser = parser.add_mutually_exclusive_group(required=False)
+    early_stopping_parser.add_argument(
+        "--stop_early", dest="early_stopping", action="store_true"
+    )
+    parser.set_defaults(early_stopping=False)
 
     # Give the model and dataset a chance to add their own params
     parser = ImplicitMatrixFactorization.add_model_specific_args(parser)
